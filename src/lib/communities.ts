@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { assertAllowedWords } from './moderation';
 import { getPool, withTx } from './db';
 import { getRedis, keys } from './redis';
 import { ApiError } from './errors';
@@ -38,6 +39,8 @@ export async function createCommunity(userHeader: string | null, raw: unknown) {
   const userId = await knownUser(userHeader);
   const p = CreateSchema.safeParse(raw);
   if (!p.success) fail(p.error.issues[0]);
+  await assertAllowedWords(p.data.name, 'name');
+  if (p.data.description) await assertAllowedWords(p.data.description, 'description');
 
   const r = getRedis();
   const rateKey = keys.communityRate(userId);

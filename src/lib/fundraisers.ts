@@ -4,6 +4,7 @@ import { ApiError } from './errors';
 import { uuidv7 } from './ids';
 import { resolveFundraiser } from './stats';
 import { resolveZip } from './places';
+import { assertAllowedWords } from './moderation';
 
 export const CREATE_LIMIT = 5;           // new fundraisers ...
 export const CREATE_WINDOW_S = 3600;     // ... per hour, per user
@@ -46,6 +47,8 @@ export async function createFundraiser(userId: string, raw: unknown) {
   const p = CreateSchema.safeParse(raw);
   if (!p.success) fail(p.error.issues[0]);
   const body = p.data;
+  await assertAllowedWords(body.title, 'title');
+  await assertAllowedWords(body.story, 'story');
   const where = body.zip ? resolveZip(body.zip) : null;
   if (body.zip && !where) throw new ApiError(400, 'validation_failed', `${body.zip} is not a US zip code I know`, 'zip');
   const id = uuidv7();
@@ -87,6 +90,8 @@ export async function patchFundraiser(ref: string, userId: string | null, ifMatc
   if (!p.success) fail(p.error.issues[0]);
   const patch = p.data;
   if (!Object.keys(patch).length) throw new ApiError(400, 'validation_failed', 'Nothing to update');
+  if (patch.title !== undefined) await assertAllowedWords(patch.title, 'title');
+  if (patch.story !== undefined) await assertAllowedWords(patch.story, 'story');
 
   const f = await resolveFundraiser(ref);
   if (f.owner_id !== userId) throw new ApiError(403, 'forbidden', 'Only the owner can edit this fundraiser');

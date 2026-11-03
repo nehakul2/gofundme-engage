@@ -133,7 +133,7 @@ export default function AdminDashboard() {
       )}
 
       <h2>Blocked words</h2>
-      <p className="muted">Chat refuses messages that contain one of these as a whole word, in any capitalisation.</p>
+      <p className="muted">Chat messages, fundraiser titles and stories, and community names and descriptions are refused if they contain one of these as a whole word, in any capitalisation.</p>
       <form onSubmit={(e) => { e.preventDefault(); if (word.trim()) wordOp('POST', word.trim()); }} className="manage-row">
         <label htmlFor="newword" className="sr-only">Word to block</label>
         <div>

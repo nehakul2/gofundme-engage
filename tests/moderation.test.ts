@@ -149,4 +149,22 @@ describe('MOD: muting', () => {
     expect((await mutes('POST', { user_id: 'nope' })).status).toBe(400);
     expect((await mutes('POST', { user_id: '01930000-0000-7000-8000-0001000000ff' })).status).toBe(404);
   });
+
+  it('MOD-14 blocked words also stop fundraiser titles and stories, edits, and community names', async () => {
+    await getPool().query("INSERT INTO blocked_words (word) VALUES ('haters')");
+    const frPost = async (body: unknown) => {
+      const { POST } = await import('@/app/api/v1/fundraisers/route');
+      return out(await POST(req('POST', body, IDS.U1)));
+    };
+    const ok = { title: 'Support our team', story: 'We need help with costs.', goal_cents: 500000 };
+    expect(await frPost({ ...ok, title: 'People who are Haters of anyone' })).toMatchObject({ status: 422, body: { error: { code: 'text_blocked', field: 'title' } } });
+    expect(await frPost({ ...ok, story: 'No haters allowed, we just need help.' })).toMatchObject({ status: 422, body: { error: { field: 'story' } } });
+    expect((await frPost(ok)).status).toBe(201);
+    const cPost = async (body: unknown) => {
+      const { POST } = await import('@/app/api/v1/communities/route');
+      return out(await POST(req('POST', body, IDS.U2)));
+    };
+    expect(await cPost({ name: 'Anti haters club', description: 'x' })).toMatchObject({ status: 422, body: { error: { field: 'name' } } });
+    expect((await cPost({ name: 'Friendly club', description: 'Kind people' })).status).toBe(201);
+  });
 });
