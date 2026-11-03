@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "(npm run migrate || echo 'WARNING: migrate failed, starting anyway') && next start",
     "typecheck": "tsc --noEmit",
     "migrate": "tsx scripts/migrate.ts",
     "seed": "tsx scripts/seed.ts",

@@ -211,6 +211,10 @@ Local run, one 2-core sandbox running the app, worker, Postgres, Redis and k6 to
 
 In the second run the fundraiser crossed 25, 50, 75 and 100% under concurrent load: each milestone fired once, with one post and one notification each.
 
+## Migrations on Railway
+
+`npm run start` now runs `npm run migrate` first (it only applies files not yet recorded in `schema_migrations`), then starts the server, so a deploy cannot be left without its tables. If migrate fails, the log shows `WARNING: migrate failed, starting anyway` and the app still starts. The `preDeployCommand` in `railway.json` stays as a second chance. The worker has its own start command and does not migrate.
+
 ## Local services without Docker
 
 `./scripts/dev-services.sh` starts Postgres and Redis directly (used in the sandbox where I built this).
