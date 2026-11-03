@@ -157,7 +157,7 @@ describe('MOD: muting', () => {
       return out(await POST(req('POST', body, IDS.U1)));
     };
     const ok = { title: 'Support our team', story: 'We need help with costs.', goal_cents: 500000 };
-    expect(await frPost({ ...ok, title: 'People who are Haters of anyone' })).toMatchObject({ status: 422, body: { error: { code: 'text_blocked', field: 'title' } } });
+    expect(await frPost({ ...ok, title: 'People who are Haters of anyone' })).toMatchObject({ status: 422, body: { error: { code: 'text_blocked', field: 'title', message: expect.stringContaining('“haters” is a blocked word') } } });
     expect(await frPost({ ...ok, story: 'No haters allowed, we just need help.' })).toMatchObject({ status: 422, body: { error: { field: 'story' } } });
     expect((await frPost(ok)).status).toBe(201);
     const cPost = async (body: unknown) => {
@@ -166,5 +166,13 @@ describe('MOD: muting', () => {
     };
     expect(await cPost({ name: 'Anti haters club', description: 'x' })).toMatchObject({ status: 422, body: { error: { field: 'name' } } });
     expect((await cPost({ name: 'Friendly club', description: 'Kind people' })).status).toBe(201);
+  });
+
+  it('MOD-15 the early-check endpoint names a blocked word and passes clean text', async () => {
+    await getPool().query("INSERT INTO blocked_words (word) VALUES ('haters')");
+    const { GET } = await import('@/app/api/v1/words/check/route');
+    const chk = async (t: string) => out(await GET(new Request(`http://x/?text=${encodeURIComponent(t)}`)));
+    expect((await chk('No Haters here')).body).toEqual({ blocked: 'haters' });
+    expect((await chk('A kind fundraiser')).body).toEqual({ blocked: null });
   });
 });

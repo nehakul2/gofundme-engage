@@ -42,7 +42,7 @@ Mock payment tokens: `pm_test_ok`, `pm_test_decline`, `pm_test_slow` (10 s), `pm
 
 ```bash
 docker compose exec postgres createdb -U postgres gofundme_test   # once
-npm test                                                          # 166 tests, real Postgres and Redis
+npm test                                                          # 167 tests, real Postgres and Redis
 ```
 
 The tests use their own database (`gofundme_test`) and Redis database 1, so they do not touch your demo data.
@@ -126,7 +126,7 @@ Continuous integration runs on every push (`.github/workflows/ci.yml`: type chec
 
 - **Report**: signed-in users can report someone else's message (`POST /api/v1/chat/messages/:id/report`, optional reason up to 200 characters). Reporting twice changes nothing; you cannot report your own message. Reports collect in the admin queue, grouped by message with the most reported first, and an admin chooses **Remove message** (hidden for everyone, live in open chats) or **Dismiss**.
 - **Mute**: a person can mute someone (`POST` and `DELETE /api/v1/me/mutes`). Their messages disappear for the muter only, and a "Muted: ... Unmute" line shows who is muted. It does not affect anyone else's view.
-- **Word filter**: admins block words; a message containing one as a whole word, in any capitalisation, is refused with 422 `message_blocked` (so blocking "ass" does not block "class"). The same list also applies to fundraiser titles and stories (on create and edit) and to community names and descriptions, refused with 422 `text_blocked` and the field name. It does not look at donor names or donation comments. The list starts empty.
+- **Word filter**: admins block words; a message containing one as a whole word, in any capitalisation, is refused with 422 `message_blocked` (so blocking "ass" does not block "class"). The same list also applies to fundraiser titles and stories (on create and edit) and to community names and descriptions, refused with 422 `text_blocked`, and the message names the blocked word. The chat checks the title and story as they are typed (`GET /api/v1/words/check?text=`), so the person is told right away. It does not look at donor names or donation comments. The list starts empty.
 
 Migration `007_moderation.sql` adds `chat_reports`, `user_mutes` and `blocked_words`. Tests: MOD-01 to MOD-13. Not built: automatic hiding after several reports, appeals, banning someone from posting, direct messages, notifying the person whose message was removed, and an admin login (the shared `ADMIN_KEY` is the only protection). Search still uses plain text matching plus trigram similarity; full-text search is the step for a large catalogue.
 

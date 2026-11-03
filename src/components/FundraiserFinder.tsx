@@ -84,7 +84,8 @@ export default function FundraiserFinder() {
         // Validation problem: go back to the step that owns the field
         const step = f.error?.field === 'zip' ? (setDraft({ ...d, zip: undefined }), 'story' as const) : f.error?.field === 'title' ? 'title' : f.error?.field === 'goal_cents' ? 'goal' : 'story';
         setDraft({ ...d, step });
-        say({ who: 'finder', text: `${f.error?.message ?? 'That did not work.'} Please send it again.` });
+        if (f.error?.code === 'text_blocked') setText(step === 'title' ? d.title : d.story);
+        say({ who: 'finder', text: f.error?.message ?? 'That did not work. Please send it again.' });
       }
     } catch { say({ who: 'finder', text: 'I could not reach the server. Your answers are kept; press Create again.', actions: ['confirm', 'cancel'] }); }
     setBusy(false);
@@ -123,8 +124,10 @@ export default function FundraiserFinder() {
         setCdraft(null);
         say({ who: 'finder', text: 'Choose who you are under “Viewing as”, then try again.' });
       } else {
-        setCdraft({ ...d, step: c.error?.field === 'description' ? 'description' : 'name' });
-        say({ who: 'finder', text: `${c.error?.message ?? 'That did not work.'} Please send it again.` });
+        const cstep = c.error?.field === 'description' ? 'description' : 'name';
+        setCdraft({ ...d, step: cstep });
+        if (c.error?.code === 'text_blocked') setText(cstep === 'name' ? d.name : d.description);
+        say({ who: 'finder', text: c.error?.code === 'text_blocked' ? c.error.message : `${c.error?.message ?? 'That did not work.'} Please send it again.` });
       }
     } catch { say({ who: 'finder', text: 'I could not reach the server. Your answers are kept; press Create again.', actions: ['confirmCommunity', 'cancel'] }); }
     setBusy(false);
@@ -197,7 +200,19 @@ export default function FundraiserFinder() {
     } catch { say({ who: 'finder', text: 'I could not reach the server. Try again.' }); }
   }
 
-  function answer(raw: string, d: Draft) {
+  // Early check so a blocked word is caught as soon as it is typed, not after the last step.
+  async function blockedIn(raw: string): Promise<string | null> {
+    try { const r = await fetch(`/api/v1/words/check?text=${encodeURIComponent(raw)}`); return r.ok ? (await r.json()).blocked : null; } catch { return null; }
+  }
+
+  async function answer(raw: string, d: Draft) {
+    if (d.step === 'title' || d.step === 'story') {
+      const hit = await blockedIn(raw);
+      if (hit) {
+        setText(raw);
+        return say({ who: 'finder', text: `“${hit}” is a blocked word, so this fundraiser can't be created with it. Please reword the ${d.step} and send it again.` });
+      }
+    }
     if (d.step === 'title') {
       if (raw.length < 3 || raw.length > 120) return say({ who: 'finder', text: 'A title needs 3 to 120 characters. Try again.' });
       setDraft({ ...d, title: raw, step: 'goal' });
@@ -225,7 +240,7 @@ export default function FundraiserFinder() {
     setText('');
     say({ who: 'you', text: raw });
     if ((draft || cdraft) && /^(cancel|stop|quit|never ?mind)$/i.test(raw)) return cancel();
-    if (draft) return answer(raw, draft);
+    if (draft) { setBusy(true); await answer(raw, draft); setBusy(false); return; }
     if (cdraft) return answerCommunity(raw, cdraft);
     if (parsePlace(raw)) { setBusy(true); await suggestPlace(raw); setBusy(false); return; }
     const ci = communityIntent(raw);

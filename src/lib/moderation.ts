@@ -23,18 +23,23 @@ async function knownUser(header: string | null): Promise<string> {
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // Whole words only, any capitalisation: blocking "ass" does not block "class".
-// `field` is the input being checked. Chat keeps its original error; titles, stories and community
-// names get a more general one that names the field.
-export async function assertAllowedWords(body: string, field = 'body'): Promise<void> {
+// First blocked word found in the text (whole word, any capitalisation), or null.
+export async function findBlockedWord(text: string): Promise<string | null> {
   const { rows } = await getPool().query<{ word: string }>('SELECT word::text AS word FROM blocked_words');
-  if (!rows.length) return;
-  const lower = body.toLowerCase();
+  const lower = text.toLowerCase();
   for (const { word } of rows) {
-    if (new RegExp(`(^|[^a-z0-9])${escapeRe(word.toLowerCase())}($|[^a-z0-9])`).test(lower)) {
-      if (field === 'body') throw new ApiError(422, 'message_blocked', 'That message has a word that is not allowed in chat. Please reword it.', 'body');
-      throw new ApiError(422, 'text_blocked', `The ${field} has a word that is not allowed here. Please reword it.`, field);
-    }
+    if (new RegExp(`(^|[^a-z0-9])${escapeRe(word.toLowerCase())}($|[^a-z0-9])`).test(lower)) return word;
   }
+  return null;
+}
+
+// `field` is the input being checked. Chat keeps its original error; titles, stories and community
+// names get a message that names the word and the field.
+export async function assertAllowedWords(body: string, field = 'body'): Promise<void> {
+  const hit = await findBlockedWord(body);
+  if (!hit) return;
+  if (field === 'body') throw new ApiError(422, 'message_blocked', 'That message has a word that is not allowed in chat. Please reword it.', 'body');
+  throw new ApiError(422, 'text_blocked', `“${hit}” is a blocked word, so this can't be created. Please reword the ${field} and send it again.`, field);
 }
 
 const WordSchema = z.object({ word: z.string().trim().min(2, 'A word needs at least 2 characters').max(40, 'A word can be at most 40 characters') });
