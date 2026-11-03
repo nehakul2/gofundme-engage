@@ -42,7 +42,7 @@ Mock payment tokens: `pm_test_ok`, `pm_test_decline`, `pm_test_slow` (10 s), `pm
 
 ```bash
 docker compose exec postgres createdb -U postgres gofundme_test   # once
-npm test                                                          # 124 tests, real Postgres and Redis
+npm test                                                          # 138 tests, real Postgres and Redis
 ```
 
 The tests use their own database (`gofundme_test`) and Redis database 1, so they do not touch your demo data.
@@ -116,7 +116,21 @@ A **Chat** button sits at the bottom right of the home page and opens one small 
 
 The organizer sees a **Manage your fundraiser** card at the bottom of the fundraiser page; nobody else sees it. **Save name** renames the fundraiser (3 to 120 characters); the web address does not change, so shared links keep working. **End fundraiser** asks for confirmation, then stops donations and chat for good; the page, chat history and donor list stay readable and search shows "Ended". An ended fundraiser cannot be reopened, but it can still be renamed. Both use `PATCH /api/v1/fundraisers/:ref` with `If-Match`: 403 for anyone but the owner, 401 for guests, 412 if another edit got there first. Tests: EDIT-01 to EDIT-05, END-01 to END-05. Not built: editing the story or goal in the UI (the API supports it), and changing the address when the name changes.
 
-Deploying a demo on Railway: see `docs/RAILWAY.md` (config files `railway.json` and `railway.worker.json`). The AWS design is in `docs/DEPLOY.md`.
+Continuous integration runs on every push (`.github/workflows/ci.yml`: type check, tests against real Postgres and Redis, production build). Deploying a demo on Railway, with deploy-on-commit: see `docs/RAILWAY.md` (config files `railway.json` and `railway.worker.json`). The AWS design is in `docs/DEPLOY.md`.
+
+## Starting and joining communities
+
+Anyone signed in can start a community from the home page (**Start a community**: name 3 to 60 characters, optional description up to 280) or from the chat ("start a community for Foster City parents"). The chat first looks for existing communities with those words and points to them; if none fit it asks for a name and a description, shows a summary and creates it. The creator becomes the **owner** and first member, and the address comes from the name (`/c/foster-city-parents`; a taken name gets a short suffix). Each person can start 3 per hour (429 after that).
+
+On a community page the viewer sees a card: **Join this community** or **Leave** (the owner cannot leave, 422), and for members **Add one of your fundraisers**, which lists a fundraiser the member owns in the community (only your own, never removed ones, safe to repeat).
+
+- `POST /api/v1/communities` `{ name, description? }` returns 201 with the community
+- `GET /api/v1/communities?q=` returns up to 5 matches (every word must appear in the name or description)
+- `POST` and `DELETE /api/v1/communities/:slug/members` join and leave
+- `POST /api/v1/communities/:slug/fundraisers` `{ fundraiser: "<slug>" }`
+- `GET /api/v1/communities/:slug/me` the viewer's role and which of their fundraisers can still be added
+
+Tests: COMM-01 to COMM-14. Not built: renaming or deleting a community, removing members, moderator tools, private communities (the schema rules them out).
 
 ## Search: plain questions and typos
 

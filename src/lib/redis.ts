@@ -23,6 +23,7 @@ export const keys = {
   chatSeq: (fid: string) => `fr:{${fid}}:chat:seq`,
   chatRate: (userId: string) => `chat:{${userId}}:rate`,
   createRate: (userId: string) => `fundraiser:{${userId}}:create-rate`,
+  communityRate: (userId: string) => `community:{${userId}}:create-rate`,
   event: (fid: string, eventId: string | number) => `ev:{${fid}}:${eventId}`,
   dirty: 'flush:dirty',
   unread: (userId: string) => `me:{${userId}}:unread`,

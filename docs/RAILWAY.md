@@ -32,6 +32,13 @@ set a usage limit in Railway's billing settings before you start.
    `seed` wipes the demo tables, so run it only on a fresh database.
 8. Open the generated domain. Search for "wildfire", choose a user under "Viewing as", donate with the test card.
 
+## Git-driven CI/CD
+Every commit is built and tested automatically, and the good ones are deployed:
+1. **CI (GitHub Actions)**: `.github/workflows/ci.yml` runs on every push and pull request. It starts real Postgres and Redis, then runs the type check, all tests and a production build.
+2. **CD (Railway)**: the web and worker services are connected to the GitHub repository and branch (Settings, Source). Each commit to that branch builds the Dockerfile and deploys; `railway.json` runs the migrations first. Turn on **Wait for CI** in each service's Settings so a deploy starts only if the GitHub Actions run passes.
+3. **Pull requests**: Railway can create a temporary preview environment per pull request (Project Settings, Environments, PR Environments). Previews need their own database, which uses more trial credit, so leave this off unless you need it.
+Commit to a feature branch and open a pull request to see CI first; merging to the deploy branch (usually `main`) is what ships.
+
 ## Before you share the link
 - **Sign-in is a stand-in.** The app trusts an `x-user-id` header chosen in the browser, so anyone can act as any user.
   That is fine for a demo and unacceptable for real use. Say so in the submission.

@@ -4,6 +4,8 @@ import { json } from '@/lib/errors';
 
 export const dynamic = 'force-dynamic';
 
+// GET /api/v1/health   Is the app configured and can it reach Postgres and Redis?
+// Safe to expose: it reports yes/no and an error code, never addresses or passwords.
 async function check(fn: () => Promise<unknown>): Promise<{ ok: boolean; error?: string }> {
   try {
     await Promise.race([fn(), new Promise((_, rej) => setTimeout(() => rej(Object.assign(new Error('timeout'), { code: 'TIMEOUT' })), 4000))]);
@@ -23,7 +25,7 @@ export async function GET() {
   const postgres = await check(() => getPool().query('SELECT 1'));
   const tables = postgres.ok
     ? await check(async () => {
-        const r = await getPool().query("SELECT to_regclass('public.fundraisers') AS t");
+        const r = await getPool().query("SELECT to_regclass('public.fundraisers') AS t, (SELECT count(*) FROM schema_migrations) AS n");
         if (!r.rows[0].t) throw Object.assign(new Error('no fundraisers table'), { code: 'NO_TABLES' });
       })
     : { ok: false, error: 'skipped' };

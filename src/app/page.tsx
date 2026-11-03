@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import ChatDock from '@/components/ChatDock';
+import CreateCommunity from '@/components/CreateCommunity';
 import FundraiserCard from '@/components/FundraiserCard';
 import { getPool } from '@/lib/db';
 import { percentOfGoal } from '@/lib/money';
@@ -34,6 +35,7 @@ export default async function Home() {
           <li key={c.slug}><Link href={`/c/${c.slug}`} className="card fcard"><h3>{c.name}</h3><p className="muted" style={{ margin: 0 }}>{c.description}</p></Link></li>
         ))}
       </ul>
+      <div style={{ marginTop: 16 }}><CreateCommunity /></div>
       <ChatDock />
     </>
   );

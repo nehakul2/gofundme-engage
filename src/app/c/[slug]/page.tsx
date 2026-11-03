@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import CommunityActions from '@/components/CommunityActions';
 import CopyLinkButton from '@/components/CopyLinkButton';
 import FollowButton from '@/components/FollowButton';
 import FundraiserCard from '@/components/FundraiserCard';
@@ -35,6 +36,8 @@ export default async function CommunityPage({ params }: P) {
         </div>
         <div className="acts"><FollowButton type="community" id={c.id} /><CopyLinkButton /></div>
       </section>
+
+      <CommunityActions slug={c.slug} />
 
       <div className="two-col">
         <section aria-label="Updates">
