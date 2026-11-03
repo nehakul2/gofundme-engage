@@ -5,6 +5,7 @@ import { uuidv7, UUID_RE } from './ids';
 import { getRedis, keys } from './redis';
 import { resolveFundraiser, type FundraiserRow } from './stats';
 import { requireUser } from './engagement';
+import { assertAllowedWords } from './moderation';
 
 // Chat room per fundraiser. Postgres holds the messages. A Redis counter ("seq") moves on
 // every post or delete so the live stream only touches Postgres when something changed.
@@ -84,6 +85,7 @@ export async function postMessage(ref: string, userId: string | null, raw: unkno
   const pool = getPool();
   const known = await pool.query('SELECT 1 FROM users WHERE id = $1', [uid]);
   if (!known.rowCount) throw new ApiError(401, 'unauthenticated', 'Sign in to do this');
+  await assertAllowedWords(body);
 
   const clientId = parsed.data.client_id ?? null;
   const existing = async () => {

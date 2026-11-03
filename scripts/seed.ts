@@ -10,7 +10,7 @@ export async function seed(): Promise<void> {
   await pool.query(`
     TRUNCATE users, slug_history, fundraisers, fundraiser_stats, donations, communities,
              community_members, community_fundraisers, posts, follows, shares, idempotency_keys,
-             outbox_events, fundraiser_milestones, notifications, visit_snapshots, analytics_events, chat_messages CASCADE`);
+             outbox_events, fundraiser_milestones, notifications, visit_snapshots, analytics_events, chat_messages, chat_reports, user_mutes, blocked_words CASCADE`);
   await getRedis().flushdb();
 
   const users: [string, string, string][] = [

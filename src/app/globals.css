@@ -184,3 +184,6 @@ a.tag { min-height:44px; padding:0 16px; font-size:14px; font-weight:600; backgr
 .manage-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:16px; }
 .manage-confirm { margin-top:16px; padding:14px; border:1px solid var(--line); border-radius:12px; background:var(--soft); }
 .btn.danger { background:#b3261e; border-color:#b3261e; color:#fff; }
+.admin-table { border-collapse:collapse; margin:16px 0; min-width:320px; } .admin-table th, .admin-table td { text-align:left; padding:8px 14px 8px 0; border-bottom:1px solid var(--line); }
+.admin-table thead th { font-size:14px; color:var(--muted, #5b6676); }
+ul.stack { list-style:none; padding:0; margin:0; }

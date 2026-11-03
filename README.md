@@ -42,7 +42,7 @@ Mock payment tokens: `pm_test_ok`, `pm_test_decline`, `pm_test_slow` (10 s), `pm
 
 ```bash
 docker compose exec postgres createdb -U postgres gofundme_test   # once
-npm test                                                          # 138 tests, real Postgres and Redis
+npm test                                                          # 151 tests, real Postgres and Redis
 ```
 
 The tests use their own database (`gofundme_test`) and Redis database 1, so they do not touch your demo data.
@@ -117,6 +117,18 @@ A **Chat** button sits at the bottom right of the home page and opens one small 
 The organizer sees a **Manage your fundraiser** card at the bottom of the fundraiser page; nobody else sees it. **Save name** renames the fundraiser (3 to 120 characters); the web address does not change, so shared links keep working. **End fundraiser** asks for confirmation, then stops donations and chat for good; the page, chat history and donor list stay readable and search shows "Ended". An ended fundraiser cannot be reopened, but it can still be renamed. Both use `PATCH /api/v1/fundraisers/:ref` with `If-Match`: 403 for anyone but the owner, 401 for guests, 412 if another edit got there first. Tests: EDIT-01 to EDIT-05, END-01 to END-05. Not built: editing the story or goal in the UI (the API supports it), and changing the address when the name changes.
 
 Continuous integration runs on every push (`.github/workflows/ci.yml`: type check, tests against real Postgres and Redis, production build). Deploying a demo on Railway, with deploy-on-commit: see `docs/RAILWAY.md` (config files `railway.json` and `railway.worker.json`). The AWS design is in `docs/DEPLOY.md`.
+
+## Admin page and chat moderation
+
+**Admin page** at `/admin`: engagement numbers for the last 1, 7, 30 or 90 days (visitors, repeat visitors, share who donated, shared or followed, split by repeat and new visitors, action counts, bot traffic left out), the chat report queue, and the blocked-word list. It reads `GET /api/v1/metrics/engagement`, `GET /api/v1/admin/reports` and `/api/v1/admin/words`. When the server has `ADMIN_KEY` set (it should be, on Railway) you type the key once per browser tab; it is sent as `x-admin-key`. With no `ADMIN_KEY` (local development) the page is open.
+
+**Chat moderation** (beyond removal by the author or organizer), in fundraiser rooms and the homepage lobby:
+
+- **Report**: signed-in users can report someone else's message (`POST /api/v1/chat/messages/:id/report`, optional reason up to 200 characters). Reporting twice changes nothing; you cannot report your own message. Reports collect in the admin queue, grouped by message with the most reported first, and an admin chooses **Remove message** (hidden for everyone, live in open chats) or **Dismiss**.
+- **Mute**: a person can mute someone (`POST` and `DELETE /api/v1/me/mutes`). Their messages disappear for the muter only, and a "Muted: ... Unmute" line shows who is muted. It does not affect anyone else's view.
+- **Word filter**: admins block words; a message containing one as a whole word, in any capitalisation, is refused with 422 `message_blocked` (so blocking "ass" does not block "class"). The list starts empty.
+
+Migration `007_moderation.sql` adds `chat_reports`, `user_mutes` and `blocked_words`. Tests: MOD-01 to MOD-13. Not built: automatic hiding after several reports, appeals, banning someone from posting, direct messages, notifying the person whose message was removed, and an admin login (the shared `ADMIN_KEY` is the only protection). Search still uses plain text matching plus trigram similarity; full-text search is the step for a large catalogue.
 
 ## Starting and joining communities
 
