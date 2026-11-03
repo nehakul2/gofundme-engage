@@ -42,7 +42,7 @@ Mock payment tokens: `pm_test_ok`, `pm_test_decline`, `pm_test_slow` (10 s), `pm
 
 ```bash
 docker compose exec postgres createdb -U postgres gofundme_test   # once
-npm test                                                          # 151 tests, real Postgres and Redis
+npm test                                                          # 165 tests, real Postgres and Redis
 ```
 
 The tests use their own database (`gofundme_test`) and Redis database 1, so they do not touch your demo data.
@@ -143,6 +143,17 @@ On a community page the viewer sees a card: **Join this community** or **Leave**
 - `GET /api/v1/communities/:slug/me` the viewer's role and which of their fundraisers can still be added
 
 Tests: COMM-01 to COMM-14. Not built: renaming or deleting a community, removing members, moderator tools, private communities (the schema rules them out).
+
+## Nearby fundraisers and recent events (US only)
+
+In the homepage chat, type a US zip code (`94404`) or `City, ST` (`Foster City, CA`). The chat shows fundraisers already near that place, what happened there in the last 6 months, and ideas for starting one. Picking an idea starts the guided create with the title filled in and the location attached.
+
+- API: `GET /api/v1/places/suggest?q=94404` returns `place`, `nearby`, `incidents`, `incident_sources` and `ideas`. Errors: `not_a_place` 400, `zip_not_found` and `city_not_found` 404, `ambiguous_city` and `unsupported_country` 422.
+- Places are looked up offline: zip codes from the `zipcodes` package, towns from `src/data/us-places.json` (built by `scripts/build-places.mjs`). A zip is named after the closest town, so 94404 reads "Foster City", not the post office's "San Mateo".
+- A fundraiser can be created with an optional `zip`; it stores city, state and coordinates (migration 008). "Nearby" means within 25 miles. Fundraisers without a location match when the town name is in the title or story.
+- Recent events come from two free public sources with no key: FEMA federal disaster declarations for the county (floods, fires, storms) and USGS earthquakes of magnitude 4 or more within 60 km. Results are cached for 6 hours. Each call has a 4.5 s timeout, and if one fails the answer still comes back and names the source that failed.
+- Limits: this does not cover local crime, school closures or news, since there is no free structured source for them. Only US places are supported.
+- Attribution: place names and coordinates come from GeoNames (https://www.geonames.org), licensed CC BY 4.0, through the `all-the-cities` package.
 
 ## Search: plain questions and typos
 

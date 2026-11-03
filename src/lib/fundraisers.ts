@@ -3,6 +3,7 @@ import { getPool, withTx } from './db';
 import { ApiError } from './errors';
 import { uuidv7 } from './ids';
 import { resolveFundraiser } from './stats';
+import { resolveZip } from './places';
 
 export const CREATE_LIMIT = 5;           // new fundraisers ...
 export const CREATE_WINDOW_S = 3600;     // ... per hour, per user
@@ -15,6 +16,7 @@ const CreateSchema = z.object({
   goal_cents: z.number().int('goal_cents must be a whole number of cents').min(100, 'goal must be at least $1').max(100_000_000_000),
   ends_at: z.string().datetime().optional(),
   publish: z.boolean().default(true),
+  zip: z.string().regex(/^\d{5}$/, 'zip must be a 5-digit US zip code').optional(),
 });
 
 const PatchSchema = z
@@ -44,6 +46,8 @@ export async function createFundraiser(userId: string, raw: unknown) {
   const p = CreateSchema.safeParse(raw);
   if (!p.success) fail(p.error.issues[0]);
   const body = p.data;
+  const where = body.zip ? resolveZip(body.zip) : null;
+  if (body.zip && !where) throw new ApiError(400, 'validation_failed', `${body.zip} is not a US zip code I know`, 'zip');
   const id = uuidv7();
   const base = slugify(body.title);
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -51,9 +55,10 @@ export async function createFundraiser(userId: string, raw: unknown) {
     try {
       const row = await withTx(async (c) => {
         const { rows } = await c.query(
-          `INSERT INTO fundraisers (id, owner_id, slug, title, story, goal_cents, status, ends_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING ${COLUMNS}`,
-          [id, userId, slug, body.title, body.story, body.goal_cents, body.publish ? 'active' : 'draft', body.ends_at ?? null],
+          `INSERT INTO fundraisers (id, owner_id, slug, title, story, goal_cents, status, ends_at, city, state, postal_code, lat, lng)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING ${COLUMNS}`,
+          [id, userId, slug, body.title, body.story, body.goal_cents, body.publish ? 'active' : 'draft', body.ends_at ?? null,
+           where?.city ?? null, where?.state ?? null, where?.zip ?? null, where?.lat ?? null, where?.lng ?? null],
         );
         await c.query('INSERT INTO fundraiser_stats (fundraiser_id) VALUES ($1)', [id]);
         return rows[0];

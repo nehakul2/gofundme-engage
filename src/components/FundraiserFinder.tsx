@@ -3,25 +3,28 @@ import Link from 'next/link';
 import { useRef, useState } from 'react';
 import { formatUsd } from '@/lib/money';
 import { parseGoalCents } from '@/lib/goal';
+import { parsePlace } from '@/lib/placeText';
 import { communityIntent, startIntent, titleCase1 } from '@/lib/intent';
 import { authHeaders, useViewer } from './viewer';
 
-interface Hit { id: string; slug: string; title: string; owner_name: string; raised_cents: number; goal_cents: number; can_contribute: boolean; contribute_note: string | null }
+interface Hit { id: string; slug: string; title: string; owner_name: string; raised_cents: number; goal_cents: number; can_contribute: boolean; contribute_note: string | null; city?: string | null; state?: string | null; distance_mi?: number | null }
+interface Incident { title: string; date: string; detail: string; source: string }
+interface PlaceInfo { label: string; city: string; zip: string | null }
 interface CHit { slug: string; name: string; description: string | null; member_count: number }
 type Action = 'start' | 'confirm' | 'cancel' | 'startCommunity' | 'confirmCommunity';
 type Turn =
   | { who: 'you'; text: string }
-  | { who: 'finder'; text: string; hits?: Hit[]; chits?: CHit[]; actions?: Action[]; link?: { href: string; label: string } };
+  | { who: 'finder'; text: string; hits?: Hit[]; chits?: CHit[]; actions?: Action[]; incidents?: Incident[]; ideas?: { title: string; zip: string | null }[]; link?: { href: string; label: string } };
 
 // Draft of a fundraiser being created in the chat. step says what the next typed answer means.
-interface Draft { step: 'title' | 'goal' | 'story' | 'confirm'; title: string; goal_cents: number; story: string }
+interface Draft { step: 'title' | 'goal' | 'story' | 'confirm'; title: string; goal_cents: number; story: string; zip?: string }
 
 // Draft of a community being created in the chat: name, then a short description, then confirm.
 interface CDraft { step: 'name' | 'description' | 'confirm'; name: string; description: string }
 
 const STORY_MIN = 20;
 const STORY_MAX = 1000;
-const HELLO = 'Tell me what you care about, like “wildfire” or “school”. I will find fundraisers you can join, or help you start one.';
+const HELLO = 'Tell me what you care about, like “wildfire” or “school”. Or type a US zip code or “City, ST” and I will show fundraisers near you and what has happened there lately. I can find fundraisers you can join, or help you start one.';
 
 // Question box over the search API. Matches are shown first; if none fit, it walks the person
 // through starting their own fundraiser (title, goal, story, confirm) and creates it.
@@ -40,12 +43,12 @@ export default function FundraiserFinder() {
     setTimeout(() => end.current?.scrollIntoView({ block: 'nearest' }), 0);
   };
 
-  function begin(suggest = '') {
+  function begin(suggest = '', zip?: string) {
     if (!viewer) {
       say({ who: 'finder', text: 'To start a fundraiser, choose who you are under “Viewing as” at the top of the page, then press Start again.', actions: ['start'] });
       return;
     }
-    setDraft({ step: 'title', title: '', goal_cents: 0, story: '' });
+    setDraft({ step: 'title', title: '', goal_cents: 0, story: '', zip });
     if (suggest) {
       setText(titleCase1(suggest).slice(0, 120));
       say({ who: 'finder', text: `Let’s start one. I put “${titleCase1(suggest)}” in the box as a title. Press Send to keep it, or change it first. Type “cancel” at any time to stop.` });
@@ -65,7 +68,7 @@ export default function FundraiserFinder() {
       const r = await fetch('/api/v1/fundraisers', {
         method: 'POST',
         headers: { 'content-type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ title: d.title, story: d.story, goal_cents: d.goal_cents, publish: true }),
+        body: JSON.stringify({ title: d.title, story: d.story, goal_cents: d.goal_cents, publish: true, ...(d.zip ? { zip: d.zip } : {}) }),
       });
       const f = await r.json();
       if (r.ok) {
@@ -79,7 +82,7 @@ export default function FundraiserFinder() {
         say({ who: 'finder', text: 'Choose who you are under “Viewing as”, then try again.' });
       } else {
         // Validation problem: go back to the step that owns the field
-        const step = f.error?.field === 'title' ? 'title' : f.error?.field === 'goal_cents' ? 'goal' : 'story';
+        const step = f.error?.field === 'zip' ? (setDraft({ ...d, zip: undefined }), 'story' as const) : f.error?.field === 'title' ? 'title' : f.error?.field === 'goal_cents' ? 'goal' : 'story';
         setDraft({ ...d, step });
         say({ who: 'finder', text: `${f.error?.message ?? 'That did not work.'} Please send it again.` });
       }
@@ -155,6 +158,26 @@ export default function FundraiserFinder() {
     say({ who: 'finder', text: 'Press Create community to open it, or Cancel to stop.', actions: ['confirmCommunity', 'cancel'] });
   }
 
+  async function suggestPlace(raw: string) {
+    try {
+      const r = await fetch(`/api/v1/places/suggest?q=${encodeURIComponent(raw)}`);
+      const d = await r.json();
+      if (!r.ok) return say({ who: 'finder', text: d.error?.message ?? 'I could not look that place up.' });
+      const place: PlaceInfo = d.place;
+      const zip = place.zip;
+      const ideas = (d.ideas as string[]).map((title) => ({ title, zip }));
+      const seen: string[] = [];
+      if (d.incidents.length) seen.push(`In the last 6 months near ${place.label}, I found ${d.incidents.length === 1 ? 'one event' : `${d.incidents.length} events`}.`);
+      else seen.push(`I found no major recorded events near ${place.label} in the last 6 months.`);
+      if (d.incident_sources.failed.length) seen.push(`I could not check ${d.incident_sources.failed.join(' and ')} just now.`);
+      if (d.nearby.length) {
+        say({ who: 'finder', text: `${d.nearby.length === 1 ? '1 fundraiser is' : `${d.nearby.length} fundraisers are`} near ${place.label}. ${seen.join(' ')} If none fits, you can start one here.`, hits: d.nearby, incidents: d.incidents, ideas: ideas.slice(0, 2), actions: ['start'] });
+      } else {
+        say({ who: 'finder', text: `No fundraiser exists near ${place.label} yet. ${seen.join(' ')} Here are ideas to start one:`, incidents: d.incidents, ideas });
+      }
+    } catch { say({ who: 'finder', text: 'I could not reach the server. Try again.' }); }
+  }
+
   async function search(q: string, wantsToStart = false) {
     lastQuery.current = q;
     try {
@@ -204,6 +227,7 @@ export default function FundraiserFinder() {
     if ((draft || cdraft) && /^(cancel|stop|quit|never ?mind)$/i.test(raw)) return cancel();
     if (draft) return answer(raw, draft);
     if (cdraft) return answerCommunity(raw, cdraft);
+    if (parsePlace(raw)) { setBusy(true); await suggestPlace(raw); setBusy(false); return; }
     const ci = communityIntent(raw);
     if (ci) {
       if (!ci.topic) return beginCommunity();
@@ -241,12 +265,22 @@ export default function FundraiserFinder() {
             {t.who === 'finder' && t.hits?.map((h) => (
               <div key={h.id} className="finder-hit">
                 <Link href={`/f/${h.slug}`}><strong>{h.title}</strong></Link>
-                <div className="muted">{formatUsd(h.raised_cents)} of {formatUsd(h.goal_cents)} · by {h.owner_name}</div>
+                <div className="muted">{formatUsd(h.raised_cents)} of {formatUsd(h.goal_cents)} · by {h.owner_name}{h.city ? ` · ${h.city}, ${h.state}` : ''}{h.distance_mi != null ? ` · ${h.distance_mi} mi away` : ''}</div>
                 {h.can_contribute
                   ? <Link className="btn primary" href={`/f/${h.slug}#donate`} style={{ width: 'auto', minHeight: 40, marginTop: 6 }}>Contribute</Link>
                   : <span className="tag no">Ended</span>}
               </div>
             ))}
+            {t.who === 'finder' && t.incidents && t.incidents.length > 0 && (
+              <ul className="stack" aria-label="Recent events">
+                {t.incidents.map((n, k) => <li key={k}><strong>{n.title}</strong><div className="muted">{n.date} · {n.detail} · {n.source}</div></li>)}
+              </ul>
+            )}
+            {t.who === 'finder' && i === lastIdx && t.ideas && (
+              <div className="finder-actions">
+                {t.ideas.map((x) => <button key={x.title} type="button" className="btn primary" disabled={busy} onClick={() => begin(x.title, x.zip ?? undefined)}>{x.title}</button>)}
+              </div>
+            )}
             {t.who === 'finder' && t.chits?.map((c) => (
               <div key={c.slug} className="finder-hit">
                 <Link href={`/c/${c.slug}`}><strong>{c.name}</strong></Link>
