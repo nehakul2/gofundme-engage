@@ -45,11 +45,11 @@ export default async function FundraiserPage({ params }: P) {
         ownerId={f.owner_id}
         initial={f.stats}
         initialDonations={JSON.parse(JSON.stringify(f.donations))}
-        milestones={f.milestones}
+        timeline={JSON.parse(JSON.stringify(f.timeline))}
         intro={intro}
         story={<p className="story">{f.story}</p>}
       />
-      <ManageFundraiser slug={f.slug} ownerId={f.owner_id} />
+      <ManageFundraiser slug={f.slug} ownerId={f.owner_id} hasCover={!!f.cover_image_url} />
     </article>
   );
 }

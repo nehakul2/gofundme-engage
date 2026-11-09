@@ -1,0 +1,33 @@
+{
+  "name": "gofundme-engage",
+  "private": true,
+  "version": "0.1.0",
+  "description": "GoFundMe-style Profile, Fundraiser and Community pages with engagement features",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "migrate": "tsx scripts/migrate.ts",
+    "seed": "tsx scripts/seed.ts",
+    "worker": "tsx src/workers/run.ts",
+    "load:check": "tsx scripts/load-check.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "ioredis": "^5.4.1",
+    "next": "^15.1.0",
+    "pg": "^8.13.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/pg": "^8.11.10",
+    "@types/react": "^19.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.8"
+  }
+}

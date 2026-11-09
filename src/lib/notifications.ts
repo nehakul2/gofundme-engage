@@ -4,17 +4,19 @@ import { ApiError } from './errors';
 import { getRedis, keys } from './redis';
 import { requireUser } from './engagement';
 
-// In-app notifications (milestones today). The unread count comes from Postgres, the
+// In-app notifications (milestones and organizer updates). The unread count comes from Postgres, the
 // source of truth, using the partial index on unread rows; the Redis counter the milestone
 // worker bumps is reset when the inbox is read.
 
 export interface NotificationItem {
   id: string;
-  type: 'milestone';
+  type: 'milestone' | 'update';
   target_type: string;
   target_id: string;
   threshold_pct: number | null;
   title: string | null;
+  slug: string | null;
+  excerpt: string | null;
   raised_cents: number | null;
   donor_count: number | null;
   created_at: string;
@@ -42,6 +44,8 @@ export async function listNotifications(userId: string | null, limit = 30): Prom
     target_id: r.target_id,
     threshold_pct: r.payload?.threshold_pct ?? null,
     title: r.payload?.title ?? null,
+    slug: r.payload?.slug ?? null,
+    excerpt: r.payload?.excerpt ?? null,
     raised_cents: r.payload?.raised_cents ?? null,
     donor_count: r.payload?.donor_count ?? null,
     created_at: r.created_at.toISOString(),

@@ -7,6 +7,7 @@ import { emit } from './outbox';
 import { MAX_DONATION_CENTS } from './money';
 import { getPayments } from './payments/mock';
 import { resolveFundraiser } from './stats';
+import { assertAllowedWords } from './moderation';
 
 const BodySchema = z.object({
   amount_cents: z
@@ -62,6 +63,9 @@ export async function createDonation(args: {
     throw new ApiError(400, 'idempotency_key_required', 'Send an Idempotency-Key header of 8 to 255 characters');
   }
   const body = parseBody(args.rawBody);
+  // Supporter notes and names are public, so they follow the same blocked-word list as chat and titles
+  if (body.message) await assertAllowedWords(body.message, 'message');
+  if (body.display_name) await assertAllowedWords(body.display_name, 'name');
   const fr = await resolveFundraiser(args.ref);
   if (fr.status === 'removed') throw new ApiError(410, 'gone', 'This fundraiser has been removed');
   if (fr.status !== 'active') {
