@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 interface Metrics {
   window_days: number; visitors: number; repeat_visitors: number; repeat_visit_rate_pct: number;
   visitors_who_acted: number; action_rate_pct: number; action_rate_repeat_pct: number; action_rate_new_pct: number;
+  notification_visits: number; notification_visitors: number;
   actions: Record<string, number>; excluded_bot_events: Record<string, number>;
 }
 interface Report { message_id: string; body: string; author: string; handle: string; room: string; reports: number; reasons: string[] }
@@ -90,6 +91,7 @@ export default function AdminDashboard() {
             <li className="card"><div className="muted">Visitors</div><strong style={{ fontSize: 28 }}>{m.visitors}</strong></li>
             <li className="card"><div className="muted">Repeat visitors (2+ days)</div><strong style={{ fontSize: 28 }}>{m.repeat_visitors}</strong><div className="muted">{pct(m.repeat_visit_rate_pct)} of visitors</div></li>
             <li className="card"><div className="muted">Visitors who acted</div><strong style={{ fontSize: 28 }}>{m.visitors_who_acted}</strong><div className="muted">{pct(m.action_rate_pct)} of visitors</div></li>
+            <li className="card"><div className="muted">Visits from the bell</div><strong style={{ fontSize: 28 }}>{m.notification_visits}</strong><div className="muted">{m.notification_visitors} {m.notification_visitors === 1 ? 'person' : 'people'} came back from a notification</div></li>
           </ul>
           <table className="admin-table">
             <caption className="sr-only">Action rate by visitor type</caption>
@@ -133,7 +135,7 @@ export default function AdminDashboard() {
       )}
 
       <h2>Blocked words</h2>
-      <p className="muted">Chat messages, fundraiser titles and stories, and community names and descriptions are refused if they contain one of these as a whole word, in any capitalisation.</p>
+      <p className="muted">Chat messages, fundraiser titles, stories and updates, supporter names and notes, and community names and descriptions are refused if they contain one of these as a whole word, in any capitalisation.</p>
       <form onSubmit={(e) => { e.preventDefault(); if (word.trim()) wordOp('POST', word.trim()); }} className="manage-row">
         <label htmlFor="newword" className="sr-only">Word to block</label>
         <div>

@@ -25,6 +25,8 @@ const EventSchema = z.object({
   path: z.string().max(300).startsWith('/'),
   target_type: z.enum(['fundraiser', 'community', 'user']).optional(),
   target_id: z.string().regex(UUID).optional(),
+  // Set when the visit started from a notification link (?from=notification)
+  source: z.literal('notification').optional(),
 });
 
 // Browser beacon. Always cheap; flagged events are stored with a reason.
@@ -34,9 +36,9 @@ export async function recordPageView(raw: unknown, facts: RequestFacts, userId: 
   const botReason = await classify(facts);
   const e = parsed.data;
   await getPool().query(
-    `INSERT INTO analytics_events (type, visitor_key, user_id, target_type, target_id, path, bot_reason)
-     VALUES ('page_view', $1, $2, $3, $4, $5, $6)`,
-    [facts.visitorKey, userId, e.target_type ?? null, e.target_id ?? null, e.path, botReason],
+    `INSERT INTO analytics_events (type, visitor_key, user_id, target_type, target_id, path, bot_reason, source)
+     VALUES ('page_view', $1, $2, $3, $4, $5, $6, $7)`,
+    [facts.visitorKey, userId, e.target_type ?? null, e.target_id ?? null, e.path, botReason, e.source ?? null],
   );
   return { counted: botReason === null };
 }
@@ -73,6 +75,12 @@ export async function engagementMetrics(days: number) {
       WHERE bot_reason IS NOT NULL AND created_at >= now() - $1::int * interval '1 day' GROUP BY 1 ORDER BY 2 DESC`,
     [d],
   );
+  // Visits that began from a bell notification: how much the updates and milestones bring people back
+  const fromBell = await pool.query(
+    `SELECT count(*)::int AS visits, count(DISTINCT visitor_key)::int AS visitors FROM analytics_events
+      WHERE bot_reason IS NULL AND type = 'page_view' AND source = 'notification' AND created_at >= now() - $1::int * interval '1 day'`,
+    [d],
+  );
   const r = rows[0];
   const rate = (a: number, b: number) => (b ? Math.round((a / b) * 1000) / 10 : 0);
   const newVisitors = r.visitors - r.repeat_visitors;
@@ -85,6 +93,8 @@ export async function engagementMetrics(days: number) {
     action_rate_pct: rate(r.visitors_who_acted, r.visitors),
     action_rate_repeat_pct: rate(r.repeat_who_acted, r.repeat_visitors),
     action_rate_new_pct: rate(r.new_who_acted, newVisitors),
+    notification_visits: fromBell.rows[0].visits as number,
+    notification_visitors: fromBell.rows[0].visitors as number,
     actions: Object.fromEntries(actions.rows.map((x) => [x.type, x.n])),
     excluded_bot_events: Object.fromEntries(excluded.rows.map((x) => [x.bot_reason, x.n])),
   };

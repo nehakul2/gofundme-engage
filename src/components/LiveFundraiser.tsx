@@ -14,15 +14,20 @@ interface Donation { id: string; amount_cents: number; display_name: string | nu
 // How old the last visit must be before "since you last visited" appears.
 const MIN_MINUTES = Number(process.env.NEXT_PUBLIC_BANNER_MIN_MINUTES ?? 60);
 
-interface Milestone { pct: number; raised_cents: number; donor_count: number; reached_at: string }
+type TimelineItem =
+  | { kind: 'update'; id: string; body: string; created_at: string; author_name: string; author_handle: string }
+  | { kind: 'milestone'; id: string; pct: number; raised_cents: number; donor_count: number; created_at: string };
+const PAGE = 10;
 const TICKS = [25, 50, 75];
 
 export default function LiveFundraiser(props: {
   id: string; slug: string; ownerId: string; initial: Stats; initialDonations: Donation[];
-  intro: React.ReactNode; story: React.ReactNode; milestones: Milestone[];
+  intro: React.ReactNode; story: React.ReactNode; timeline: TimelineItem[];
 }) {
   const [stats, setStats] = useState(props.initial);
   const [donations, setDonations] = useState(props.initialDonations);
+  const [timeline, setTimeline] = useState(props.timeline);
+  const [showAll, setShowAll] = useState(false);
   const [banner, setBanner] = useState('');
   const snapKey = `snap:${props.id}`;
   const first = useRef(props.initial);
@@ -34,14 +39,19 @@ export default function LiveFundraiser(props: {
 
   const refresh = useCallback(async () => {
     try {
-      const [s, d] = await Promise.all([
-        fetch(`/api/v1/fundraisers/${props.slug}/stats`).then((r) => r.json()),
-        fetch(`/api/v1/fundraisers/${props.slug}/donations?limit=10`).then((r) => r.json()),
+      // Independent requests: a slow or failed one must not hold back the others
+      const get = (path: string, init?: RequestInit) => fetch(`/api/v1/fundraisers/${props.slug}/${path}`, init).then((r) => r.json());
+      const [s, d, t] = await Promise.allSettled([
+        get('stats'),
+        get(`donations?limit=${showAll ? 50 : PAGE}`),
+        get('updates', { cache: 'no-store' }),
       ]);
-      if (s.raised_cents !== undefined) { setStats(s); remember(s); }
-      if (d.items) setDonations(d.items);
+      if (s.status === 'fulfilled' && s.value.raised_cents !== undefined) { setStats(s.value); remember(s.value); }
+      if (d.status === 'fulfilled' && d.value.items) setDonations(d.value.items);
+      // Milestones and organizer updates arrive without a reload
+      if (t.status === 'fulfilled' && Array.isArray(t.value.items)) setTimeline(t.value.items);
     } catch { /* keep showing the last good numbers */ }
-  }, [props.slug, remember]);
+  }, [props.slug, remember, showAll]);
 
   useEffect(() => { const t = setInterval(refresh, 4000); return () => clearInterval(t); }, [refresh]);
   // The owner's controls announce a change (renamed, ended) so the donate card and chat update at once
@@ -101,17 +111,23 @@ export default function LiveFundraiser(props: {
           {props.story}
         </section>
 
-        {props.milestones.length > 0 && (
+        {timeline.length > 0 && (
           <section className="card slot slot-updates" aria-label="Updates">
             <h2>Updates</h2>
             <div className="stack">
-              {props.milestones.map((m) => (
-                <div key={m.pct} className="milestone-card">
+              {timeline.map((m) => m.kind === 'milestone' ? (
+                <div key={m.id} className="milestone-card">
                   <svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="6" /><path d="M15.5 13.5 17 22l-5-3-5 3 1.5-8.5" /></svg>
                   <div>
                     <div className="eyebrow">MILESTONE · {m.pct}%</div>
                     <p>Reached {m.pct}% of the {formatUsd(stats.goal_cents)} goal, {m.donor_count.toLocaleString('en-US')} {m.donor_count === 1 ? 'supporter' : 'supporters'} so far.</p>
                   </div>
+                </div>
+              ) : (
+                <div key={m.id} className="update-card">
+                  <div className="eyebrow">UPDATE FROM THE ORGANIZER</div>
+                  <p className="update-body">{m.body}</p>
+                  <small className="muted">{m.author_name} · {new Date(m.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</small>
                 </div>
               ))}
             </div>
@@ -129,6 +145,9 @@ export default function LiveFundraiser(props: {
                 </li>
               ))}
             </ul>
+          )}
+          {(donations.length >= PAGE || showAll) && (
+            <button className="btn secondary" style={{ width: 'auto', marginTop: 12 }} onClick={() => setShowAll((v) => !v)}>{showAll ? 'Show fewer' : 'Show more supporters'}</button>
           )}
         </section>
 

@@ -42,12 +42,12 @@ Mock payment tokens: `pm_test_ok`, `pm_test_decline`, `pm_test_slow` (10 s), `pm
 
 ```bash
 docker compose exec postgres createdb -U postgres gofundme_test   # once
-npm test                                                          # 167 tests, real Postgres and Redis
+npm test                                                          # 194 tests, real Postgres and Redis
 ```
 
 The tests use their own database (`gofundme_test`) and Redis database 1, so they do not touch your demo data.
 
-Test names carry the matrix IDs (DON, PAY, CNT, MIL, API; SRCH, CHAT and NOTE for search, chat and notifications, added after the first matrix). Spot-check each ID against the
+Test names carry the matrix IDs (DON, PAY, CNT, MIL, API; SRCH, CHAT and NOTE for search, chat and notifications, added after the first matrix; UPD, COV, SUP, GOAL and BAN for the enhancements below). Spot-check each ID against the
 matrix wording; I mapped them from my notes of the matrix, not by re-reading every case.
 
 ## What is built
@@ -67,12 +67,15 @@ matrix wording; I mapped them from my notes of the matrix, not by re-reading eve
 | Fundraiser search (with can-contribute verdict) | `src/lib/search.ts`, `src/app/search/`, `src/app/api/v1/search/` |
 | Chat room per fundraiser | `src/lib/chat.ts`, `src/components/ChatRoom.tsx`, `src/app/api/v1/fundraisers/[ref]/chat/` |
 | Notifications and the header bell | `src/lib/notifications.ts`, `src/components/Bell.tsx`, `src/app/api/v1/me/notifications/` |
+| Organizer updates (post, timeline, delivery to followers, donors and communities) | `src/lib/updates.ts`, `src/app/api/v1/fundraisers/[ref]/updates/` |
+| Cover photos (upload, serve, remove, admin takedown) | `src/lib/covers.ts`, `src/app/api/v1/fundraisers/[ref]/cover/` |
+| Community "since you last visited" banner | `src/components/CommunityBanner.tsx` |
 | Routes | `src/app/api/v1/` |
 
 ## Not built yet
 
-Joining communities and posting; chat moderation beyond author and organizer removal (no reporting, no blocking, no word filter, no per-room mute); direct messages; create/edit screens for fundraisers (the API exists); server-side
-visit snapshots for signed-in users (the banner uses browser storage only); an admin dashboard page for the metrics; applying the AWS config (see `docs/DEPLOY.md`);
+Direct messages; automatic image scanning for cover photos; email notifications; server-side
+visit snapshots for signed-in users (the banner uses browser storage only); applying the AWS config (see `docs/DEPLOY.md`);
 SQS FIFO in place of the in-process queue; email notifications; the 24 h notification cap.
 
 ## Differences from the architecture doc
@@ -86,6 +89,30 @@ SQS FIFO in place of the in-process queue; email notifications; the 24 h notific
 - `LocalQueue` runs inside the worker instead of SQS FIFO; same ordering rule (one lane per fundraiser).
 - `flush:dirty` is a single key, so it is not Redis Cluster safe yet.
 - A provider failure stores a 502 under the idempotency key, so a retry needs a new key.
+
+## Enhancements beyond the PRD
+
+The PRD asks for three connected pages and a way to measure repeat visits and actions. These additions go further. Each one is aimed at a return visit or an action, and each is measurable with the existing metrics.
+
+| Enhancement | What it does | Why it is here |
+|---|---|---|
+| Organizer updates | The organizer posts a short update. It shows on the fundraiser page with the milestones, in the feed of every community the fundraiser is in, and in the bell of followers and signed-in donors. | The best reason to come back between milestones. The admin page counts visits that start from a bell notification (`?from=notification`). |
+| Supporter notes follow the blocked-word list | A note or name on a donation is checked against the same word list as chat, titles and stories. | A gap found while reviewing: the filter covered everything except the supporter note, which is public. |
+| Cover photo | The organizer uploads a JPEG, PNG or WebP up to 2 MB, or removes it. | Pages look finished, and a picture raises the chance of a share. |
+| Goal editing | The organizer changes the goal from the page (the API already supported it). It cannot go below what was raised. | Fundraisers that pass their goal can keep going. |
+| Community banner | "Since you last visited: $X raised, N new updates, N new members", from browser storage like the fundraiser banner. | Closes a gap listed earlier, so all three pages give a returning visitor a reason to look. |
+| Live updates | Milestones and organizer updates appear without a reload. The supporter list can be widened to 50. | Milestone cards used to need a reload. |
+
+**Tradeoffs**
+
+- Updates are delivered through the outbox and worker, like milestones, so a slow worker delays the bell but cannot lose it or send it twice (the notification key is per person and update).
+- Notification recipients are followers and signed-in donors. Guests who donated have no inbox, so they get nothing. There is no email.
+- Cover images are stored in Postgres (`bytea`, 2 MB cap) so there is no object store to run and a redeploy cannot lose them. The URL carries a version, so browsers cache each image for a year and a replaced image gets a new address. Moving to S3 only changes `src/lib/covers.ts`. The file's type is checked from its first bytes, not from the label the browser sent, and it is served with `nosniff` and a locked-down CSP. There is no automatic image scanning, only owner-only upload and an admin takedown (`DELETE /api/v1/admin/fundraisers/:ref/cover`). That is a known gap.
+- Editing the cover does not change the fundraiser's `version`, so changing a photo never makes someone else's rename fail with a 412.
+- An update can be posted on an ended fundraiser (to say thank you), but not on a draft or removed one. Limit: 10 updates an hour per fundraiser.
+- The banner uses browser storage, so it is per browser, not per account.
+
+**Left out on purpose** (not in the PRD, and none of them moves repeat visits or actions): team fundraising, recurring donations, charity payouts, beneficiary and withdrawal flows, refunds requested by donors, and a report-a-fundraiser queue. Chat reporting already exists for the one place people write freely.
 
 ## Pages
 
@@ -181,6 +208,7 @@ Chat messages are not counted as a "meaningful action" in the engagement metrics
 - `GET /api/v1/metrics/engagement?days=7` returns visitors, repeat visitors (seen on 2 or more UTC days in the window), the share of visitors who acted, and the action rate split by repeat vs new visitors, plus how many events were excluded and why.
 - A visitor is the signed-in user id, or the anonymous browser id. Someone who signs in mid-window counts as two visitors.
 - Bot and internal traffic is stored with a reason and excluded from every number. Three layers: network ranges (`INTERNAL_CIDRS`), deterministic markers (`INTERNAL_TRAFFIC_KEY` header `x-internal-traffic`, visitor ids starting `synthetic_`, the `GoFundMe-Synthetic` agent), and behavior (crawler user agents, more than 30 events a minute).
+- The metrics also report `notification_visits` and `notification_visitors`: page views that began from a bell link (`?from=notification`). That is the direct measure of whether updates and milestones bring people back.
 - Set `ADMIN_KEY` to require an `x-admin-key` header on the metrics endpoint.
 
 ## Live pulse

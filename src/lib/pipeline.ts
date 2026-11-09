@@ -2,6 +2,7 @@ import { relayOnce } from './outbox';
 import { LocalQueue, type Message, type Queue } from './queue';
 import { applyDonationEvent, flushDirty } from './counters';
 import { deliverMilestone } from './milestones';
+import { deliverUpdate } from './updates';
 
 // Routes one queue message to its consumer.
 export async function handleMessage(m: Message): Promise<void> {
@@ -26,6 +27,9 @@ export async function handleMessage(m: Message): Promise<void> {
       break;
     case 'milestone.reached':
       await deliverMilestone(p as Parameters<typeof deliverMilestone>[0]);
+      break;
+    case 'update.posted':
+      await deliverUpdate(p as Parameters<typeof deliverUpdate>[0]);
       break;
     default:
       break; // donation.created has no consumer yet

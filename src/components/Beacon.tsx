@@ -11,7 +11,7 @@ export default function Beacon() {
       method: 'POST',
       keepalive: true,
       headers: { 'content-type': 'application/json', ...authHeaders() },
-      body: JSON.stringify({ type: 'page_view', path }),
+      body: JSON.stringify({ type: 'page_view', path, ...(window.location.search.includes('from=notification') ? { source: 'notification' } : {}) }),
     }).catch(() => undefined);
   }, [path]);
   return null;
