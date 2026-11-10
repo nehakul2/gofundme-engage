@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import ChatRoom from './ChatRoom';
 import FundraiserFinder from './FundraiserFinder';
 
@@ -10,6 +10,15 @@ export default function ChatDock() {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<'find' | 'community'>('find');
   const [seen, setSeen] = useState({ find: false, community: false });
+
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const tab = (e as CustomEvent<{ tab?: 'find' | 'community' }>).detail?.tab ?? 'find';
+      setTab(tab); setSeen((s) => ({ ...s, [tab]: true })); setOpen(true);
+    };
+    window.addEventListener('engage:open-chat', onOpen);
+    return () => window.removeEventListener('engage:open-chat', onOpen);
+  }, []);
 
   function show(next: 'find' | 'community') { setTab(next); setSeen((s) => ({ ...s, [next]: true })); }
   function toggle() { if (!open) setSeen((s) => ({ ...s, [tab]: true })); setOpen(!open); }

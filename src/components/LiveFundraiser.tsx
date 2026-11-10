@@ -89,7 +89,7 @@ export default function LiveFundraiser(props: {
         <div className="slot slot-intro">{props.intro}</div>
 
         <aside>
-          <section className="card sidecard" aria-label="Progress and donating">
+          <section className="card sidecard" id="donate" aria-label="Progress and donating">
             <p className="raised"><strong>{formatUsd(stats.raised_cents)}</strong> raised of {formatUsd(stats.goal_cents)} goal</p>
             <div className="bar" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Percent of goal">
               <div style={{ width: `${pct}%` }} />
@@ -139,9 +139,12 @@ export default function LiveFundraiser(props: {
           {donations.length === 0 ? <p className="muted">Be the first to give.</p> : (
             <ul className="supporters">
               {donations.map((d) => (
-                <li key={d.id}>
-                  <strong>{d.display_name ?? 'Anonymous'}</strong> <span>{formatUsd(d.amount_cents)}</span>
-                  {d.message && <p>“{d.message}”</p>}
+                <li key={d.id} className="supporter">
+                  <span className="avatar sm" aria-hidden="true">{(d.display_name ?? 'A').slice(0, 1).toUpperCase()}</span>
+                  <div className="supporter-main">
+                    <strong>{d.display_name ?? 'Anonymous'}</strong> <span>{formatUsd(d.amount_cents)}</span>
+                    {d.message && <p>“{d.message}”</p>}
+                  </div>
                 </li>
               ))}
             </ul>
@@ -151,6 +154,7 @@ export default function LiveFundraiser(props: {
           )}
         </section>
 
+        {open && <a className="btn primary donatebar" href="#donate">Donate now</a>}
         <div className="card slot slot-chat"><ChatRoom slug={props.slug} ownerId={props.ownerId} open={open} /></div>
       </div>
     </>

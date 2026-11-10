@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { IDS } from '@/fixtures';
 import Bell from './Bell';
+import StartButton from './StartButton';
 import { setViewer, useViewer } from './viewer';
 
 const PEOPLE: [string, string][] = [
@@ -14,7 +15,7 @@ export default function Header() {
     <header className="topbar">
       <Link href="/" className="brand">Engage</Link>
       <nav className="nav" aria-label="Main">
-        <Link href="/">Fundraisers</Link>
+        <Link href="/#fundraisers">Donate</Link>
         <Link href="/#communities">Communities</Link>
       </nav>
       <form action="/search" role="search" className="topsearch">
@@ -23,6 +24,7 @@ export default function Header() {
         <button className="btn secondary" type="submit" style={{ minHeight: 44 }}>Search</button>
       </form>
       <Bell />
+      <StartButton className="btn primary startbtn" />
       <label className="viewer">
         <span>Viewing as</span>
         <select value={viewer ?? ''} onChange={(e) => setViewer(e.target.value || null)} aria-label="Viewing as">
