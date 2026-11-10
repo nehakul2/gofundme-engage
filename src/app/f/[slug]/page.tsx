@@ -24,6 +24,7 @@ export default async function FundraiserPage({ params }: P) {
   }
   const intro = (
     <>
+      {f.cover_image_url && <img className="cover" src={f.cover_image_url} alt="" />}
       {f.communities.length > 0 && (
         <ul className="pills" aria-label="Communities">
           {f.communities.map((c) => <li key={c.slug}><Link className="tag" href={`/c/${c.slug}`}>{c.name}</Link></li>)}
@@ -34,7 +35,6 @@ export default async function FundraiserPage({ params }: P) {
         <span className="avatar" aria-hidden="true">{initials(f.owner_name)}</span>
         <span>{f.owner_name}<small>@{f.owner_handle} · organizer</small></span>
       </Link>
-      {f.cover_image_url && <img className="cover" src={f.cover_image_url} alt="" />}
     </>
   );
   return (

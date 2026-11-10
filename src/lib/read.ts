@@ -4,10 +4,11 @@ import { getStats, resolveFundraiser } from './stats';
 import { listDonations } from './donations';
 import { percentOfGoal } from './money';
 import { getTimeline } from './updates';
+import { coverUrl } from './covers';
 
 // Read models for the three pages. Pages call these directly on the server.
 
-interface Card { id: string; slug: string; title: string; status: string; goal_cents: number; raised_cents: number; donor_count: number; percent_of_goal: number }
+interface Card { id: string; slug: string; title: string; status: string; goal_cents: number; raised_cents: number; donor_count: number; percent_of_goal: number; cover_url?: string | null }
 
 export async function getFundraiserPage(ref: string) {
   const f = await resolveFundraiser(ref);
@@ -42,15 +43,16 @@ export async function getFundraiserPage(ref: string) {
 }
 
 async function fundraiserCards(where: string, params: unknown[]): Promise<Card[]> {
-  const { rows } = await getPool().query<Omit<Card, 'percent_of_goal'>>(
-    `SELECT f.id, f.slug, f.title, f.status, f.goal_cents,
+  const { rows } = await getPool().query<Omit<Card, 'percent_of_goal' | 'cover_url'> & { cover_version: number | null }>(
+    `SELECT f.id, f.slug, f.title, f.status, f.goal_cents, cv.version AS cover_version,
             COALESCE(s.raised_cents, 0) AS raised_cents, COALESCE(s.donor_count, 0) AS donor_count
        FROM fundraisers f LEFT JOIN fundraiser_stats s ON s.fundraiser_id = f.id
+       LEFT JOIN fundraiser_covers cv ON cv.fundraiser_id = f.id
       WHERE f.status IN ('active','ended') AND ${where}
       ORDER BY f.created_at DESC`,
     params,
   );
-  return rows.map((r) => ({ ...r, percent_of_goal: percentOfGoal(r.raised_cents, r.goal_cents) }));
+  return rows.map(({ cover_version, ...r }) => ({ ...r, percent_of_goal: percentOfGoal(r.raised_cents, r.goal_cents), cover_url: cover_version ? coverUrl(r.id, cover_version) : null }));
 }
 
 export async function getProfilePage(handle: string) {
