@@ -266,3 +266,9 @@ main > section > h2, main h2 + .grid { margin-top:0; } main > section + section,
   .startbtn { display:none !important; }
   .homehero { padding-top:16px; } .herosearch .btn { padding:0 20px; }
 }
+
+/* Start a fundraiser page */
+.startpage { max-width:680px; margin:0 auto; padding:24px 0 48px; }
+.startform { display:grid; gap:20px; margin-top:20px; }
+.startform label { display:block; font-weight:700; margin-bottom:6px; }
+a.btn { display:inline-flex; align-items:center; justify-content:center; text-decoration:none; }
